@@ -22,8 +22,8 @@ title: Designing Data-Intensive Applications
 email: byh2003@nyu.edu
 description: >- # this means to ignore newlines until "baseurl:"
   This serves to keep me motivated in taking notes and progress on this book on a daily basis.
-baseurl: "" # the subpath of your site, e.g. /blog
-url: "" # the base hostname & protocol for your site, e.g. http://example.com
+baseurl: "/ddia.github.io"
+url: "https://blakehan01.github.io/"
 # twitter_username: jekyllrb
 github_username: BlakeHan01
 

@@ -1,0 +1,66 @@
+---
+layout: post
+title: "Foundations of Data Systems"
+date: 2024-10-28
+# categories: [Data Systems, Reliability, Scalability, Maintainability]
+---
+
+# Part I. Foundations of Data Systems
+
+## 1. Reliable, Scalable, and Maintainable Applications
+
+Applications are data-intensive.
+
+Designing special-purpose data systems using general-purpose components requires a focus on:
+
+### Reliability
+
+Continue to work under faults.
+
+- **Fault vs Failure**: A fault is a part of the system malfunctioning, like a single component failure. A failure is when the entire system is down.
+
+- **Hardware Faults**:
+  - In a system with 10,000 disks, on average one disk dies a day.
+  - Use RAID, server dual-power supplies, hot-swappable CPUs.
+  - Move towards systems that tolerate machine failure for operational advantage, such as rolling upgrades.
+
+- **Software Errors**: Address systematic errors through testing, monitoring, etc.
+
+- **Human Errors**: Minimize by using abstractions without overly restrictive designs, sandbox environments, decoupling, testing, and monitoring.
+
+- **Sacrificing Reliability**: Sometimes reliability is compromised to save on development cost (e.g., prototypes) or operational cost (e.g., products with narrow profit margins).
+
+### Scalability
+
+System's ability to handle increasing load.
+
+- **Load Parameter**: Quantifies load; dependent on system architecture.
+
+- **Example - Twitter**:
+  - Managing 12k/sec peak tweet posting is feasible.
+  - The challenge is managing the reads and writes due to fan-out, where each user's post must display on many followers’ home screens.
+
+- **Fan-out Approaches**:
+  1. **Approach 1**: Look up a user’s followers, fetch their recent tweets, and merge them — expensive read queries.
+  2. **Approach 2**: Cache each user's home page tweets. New tweets are written directly to each follower's home page.
+  3. **Hybrid**: For celebrities, use Approach 1 to avoid millions of writes per tweet, while using Approach 2 for typical users.
+
+- **Performance Metrics**:
+  - **Throughput** and **Response Time**.
+  - **Tail Latency** is crucial: Amazon uses p999 (99.9th percentile) because the slowest requests often affect valuable customers.
+
+- **SLAs and SLOs**:
+  - **SLA (Service Level Agreement)**: Promise to customers, e.g., median response time under 100 ms, p99 under 1 second, uptime of at least 99.9%.
+  - **SLO (Service Level Objective)**: Internal objectives designed to meet or exceed the SLA.
+
+- **Client-Side Delay Measurement**:
+  - **Head-of-the-Line Blocking**: Slow requests blocking faster ones make all requests appear slow to the client, regardless of server-side speed.
+
+### Maintainability
+
+- **Operability**: Operations teams should focus on high-value activities (e.g., deployment tools, platform migration), facilitated by good system visibility.
+
+- **Simplicity**: Remove accidental complexity through abstraction. For example, high-level languages hide machine code, SQL abstracts disk and in-memory structures.
+
+- **Evolvability**: Increasing agility across larger data systems, composed of diverse applications and services. For instance, how Twitter can switch between fan-out approaches as needed.
+

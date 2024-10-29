@@ -1,0 +1,111 @@
+---
+layout: post
+title: "Data Models and Query Languages"
+date: 2024-10-29
+categories: [DDIA, Data Models, Query Languages]
+---
+
+# Chapter 2: Data Models and Query Languages
+
+This chapter explores different data models and query languages, as well as the pros and cons of each. It discusses the challenges of mapping application data to database structures, the advantages of polyglot persistence, and considerations for storing complex relationships between data entities.
+
+## Object-Relational Mismatch
+
+- **Problem**: Most programming languages are object-oriented, while relational databases are based on tabular structures. This creates an "object-relational mismatch," requiring a **translation layer** (e.g., ORM - Object Relational Mapping) to map between objects in code and tables in the database.
+- **Challenges**:
+  - **Inheritance**: Object-oriented inheritance structures are hard to represent in relational tables.
+  - **Relationships**: Objects reference each other directly, while relational tables rely on foreign keys and joins.
+  - **Data Granularity**: Objects may combine many small fields, while relational databases often normalize data into many tables.
+  
+## Polyglot Persistence
+
+- **Definition**: Polyglot persistence refers to using multiple types of databases or storage engines within a single application, chosen based on specific use cases.
+- **Examples**:
+  - **Relational Database** for transactional data with strict consistency requirements.
+  - **Document Store** for semi-structured data (e.g., JSON documents).
+  - **Graph Database** for complex relationships and traversal queries.
+  - **Key-Value Store** for high-performance caching.
+- **Benefits**:
+  - Each database is optimized for a specific data structure or workload, enhancing performance and flexibility.
+  - Allows for a more specialized and efficient data storage strategy.
+
+## Locality
+
+- **Definition**: Locality refers to how closely related data is stored together, affecting read efficiency.
+- **Example**: JSON documents provide good locality for self-contained structures (e.g., a resume with nested sections for work experience, education, and skills). By storing an entire document as a single entity, JSON minimizes the need for joins and enables faster retrieval of related data.
+- **Benefit**: Locality is especially beneficial in document stores where entities are hierarchical or nested, as it allows applications to retrieve complete objects with a single read operation.
+
+## Data Models for Relationships
+
+- **One-to-Many Relationships**:
+  - **Plain Text**: Embedding one-to-many relationships as plain text within a document. This approach lacks indexing and querying flexibility.
+  - **Document Storage**: Embedding related data as nested documents (e.g., a list of order items within an order document). Suitable for hierarchical data that will be accessed together.
+  - **Foreign Keys**: Linking tables in relational databases with foreign keys. This approach supports indexing and ensures referential integrity.
+  
+- **Many-to-Many Relationships**:
+  - **Join Tables**: In relational databases, a join table (or bridge table) holds references to both entities in a many-to-many relationship (e.g., students and classes).
+  - **Array Fields**: Document stores can represent many-to-many relationships with array fields containing references to related documents. 
+  - **Graph Databases**: Ideal for complex relationships, such as social networks, where entities have many-to-many connections and frequent traversal queries are needed.
+
+## Common Data Models
+
+### Relational Model
+
+- **Structure**: Data is stored in tables with rows and columns. Each row represents a record, and each column represents an attribute of the record.
+- **Strengths**: 
+  - **ACID Transactions**: Ensures consistency and reliability.
+  - **Structured Query Language (SQL)**: Mature, standardized query language for relational data.
+  - **Normalization**: Reduces data redundancy.
+- **Limitations**:
+  - Fixed schema requires predefined columns.
+  - Not optimized for hierarchical or nested data.
+
+### Document Model
+
+- **Structure**: Data is stored in document format (e.g., JSON or BSON), with each document containing key-value pairs and potentially nested structures.
+- **Strengths**:
+  - **Schema Flexibility**: Documents can vary in structure, allowing easy adjustments.
+  - **Locality**: Entire documents can be retrieved in one read, minimizing joins.
+  - **Ideal for Hierarchical Data**: Nested data is well-suited to document structures.
+- **Limitations**:
+  - **Lack of Referential Integrity**: No foreign keys or joins.
+  - **No Standardized Query Language**: Query syntax varies by database.
+
+### Key-Value Model
+
+- **Structure**: Data is stored as simple key-value pairs, where each key maps to a single value.
+- **Strengths**:
+  - **High Performance**: Optimized for fast reads and writes.
+  - **Simplicity**: Minimal structure and configuration.
+- **Limitations**:
+  - Limited querying capabilities beyond key-based lookups.
+  - Difficult to handle relationships and complex data.
+
+### Graph Model
+
+- **Structure**: Data is stored as nodes, edges, and properties, representing entities and their relationships.
+- **Strengths**:
+  - **Efficient Traversals**: Ideal for queries that involve relationships, such as "find friends of friends."
+  - **Flexibility for Complex Networks**: Supports highly connected data with dynamic relationships.
+- **Limitations**:
+  - Limited support for transactions.
+  - Can be less efficient for simple or flat data structures.
+
+## Query Languages
+
+- **SQL (Relational)**: Structured Query Language (SQL) is the standard for querying relational databases. It supports joins, aggregations, and complex queries but requires fixed schemas.
+- **NoSQL Query Languages**:
+  - **MongoDB Query Language** (Document Model): JSON-like query syntax for flexible document structures.
+  - **Gremlin** (Graph Model): A graph traversal language for querying graph databases.
+  - **CQL (Cassandra Query Language)**: SQL-like syntax adapted for Cassandra's distributed, column-family storage model.
+  
+## Use Cases for Data Models
+
+- **Relational**: Financial systems, accounting, inventory management.
+- **Document**: Content management, user profiles, e-commerce product catalogs.
+- **Key-Value**: Caching, session storage, shopping cart data.
+- **Graph**: Social networks, recommendation engines, fraud detection.
+
+## Summary
+
+The choice of data model depends on application needs, including data structure, relationships, performance, and consistency requirements. **Polyglot persistence** can help balance these needs by leveraging multiple data models, each suited for specific tasks. The selection of query languages and the organization of data relationships (e.g., one-to-many, many-to-many) should also align with the chosen data models to ensure efficient storage and retrieval.

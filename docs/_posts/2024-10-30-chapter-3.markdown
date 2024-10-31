@@ -1,0 +1,149 @@
+---
+layout: post
+title: "Storage and Retrieval"
+date: 2024-10-30
+categories: [DDIA, Key-Value Stores, Storage]
+---
+
+# Chapter 3: Storage and Retrieval
+
+This chapter dives into the inner workings of key-value stores, including storage models like hash indexes, SSTables with LSM-trees, and B-trees, as well as indexing strategies and optimization techniques.
+
+## Hash Index
+
+### Overview
+- **Bitcask** uses an in-memory hash table for fast key-value lookups. 
+- Each key maps to a pointer (offset) in an append-only log on disk, where the actual values are stored.
+
+### Managing Disk Space
+- **Segmented Files**: The log is divided into segments, each with its own in-memory hash table pointing to offsets within the file.
+- **Merge and Compaction**: Regular merging and compaction free up space and improve query efficiency.
+
+### Optimizations
+- **Tombstones**: Use delete markers to avoid immediate deletions.
+- **Checksum**: Protects against partially written records.
+- **Binary Format**: Store values in binary format (length-prefixed string).
+- **Single Write Thread**: Since writes are sequential, a single thread is sufficient.
+- **Crash Recovery**: Snapshot each segment’s hash map to disk for easy recovery.
+
+### Pros and Cons
+- **Advantages**:
+  - Sequential writes prevent fragmentation.
+  - Immutable files mean no partial updates, simplifying crash recovery.
+- **Disadvantages**:
+  - No range queries.
+  - Memory constraints limit hash table size.
+
+## SSTable and LSM-Trees
+
+### Overview
+- **LSM-Trees**: Key-value stores that use in-memory sorted structures (memtables) and on-disk SSTables to optimize write throughput and range queries.
+  
+### SSTable Architecture
+- **Segmented and Sorted**: SSTables are multi-megabyte segment files, each sorted by key.
+- **In-Memory Sorting**: Data in memtables (e.g., AVL or red-black trees) is flushed to SSTables on disk in sorted order.
+- **Persistence**: Once a memtable exceeds a size threshold, it’s flushed to disk as an SSTable in `O(n)` time.
+
+### Crash Recovery
+- Use a **Write-Ahead Log (WAL)** to persist data before writing to the memtable, protecting against crashes.
+
+### Optimizations
+- **Bloom Filters**: Approximate the existence of keys to avoid unnecessary SSTable scans.
+- **Compaction**: 
+  - **Size-Tiered**: Merges smaller SSTables into larger ones, used in HBase and Cassandra.
+  - **Leveled**: Splits key ranges across smaller, ordered SSTables (Cassandra).
+
+### Usage and Benefits
+- **Usage**: Found in Cassandra, HBase, and Elasticsearch/Lucene.
+- **Advantages over Hash Index**:
+  - Merging is efficient since segment files are sorted.
+  - Smaller in-memory index since fewer keys are stored per segment.
+  - Compressed blocks save disk I/O and space.
+  - Supports fast range queries.
+
+## B-Trees
+
+### Architecture
+- **Paged Structure**: Fixed-size pages (e.g., 4KB), with each page containing keys and pointers to child pages.
+- **High Branching Factor**: Branching factor often in the hundreds, allowing multi-terabyte datasets to fit in shallow trees.
+
+### Reliability
+- **Crash Recovery**: Uses WAL to avoid orphaned pages.
+- **Concurrency Control**: Latches manage thread access to pages during reads/writes.
+
+### Optimizations
+- **Copy-on-Write**: Modified pages are written to new locations, updating parent pointers.
+- **Sequential Leaf Storage**: Place leaf pages in order on disk to reduce read I/O.
+
+### B-Trees vs. LSM-Trees
+- **B-Trees**: Higher read throughput, but worse write amplification (especially for SSDs). Strong transaction semantics since each key exists in one place.
+- **LSM-Trees**: Higher write throughput but requires compaction. Increased tail latency due to concurrent compaction during high loads.
+
+## Secondary Indexes
+
+Secondary indexes can be created from a key-value index:
+
+1. **Postings List (Full-Text Style)**:
+   - Example:
+     ```yaml
+     city_index:
+       "New York" → [user_id_1, user_id_3, user_id_7]
+       "Los Angeles" → [user_id_2, user_id_4]
+       "Chicago" → [user_id_5, user_id_6]
+     ```
+
+2. **Appended Row Identifier**:
+   - Example:
+     ```yaml
+     city_index:
+       "New York:user_id_1" → pointer_to_user_id_1
+       "New York:user_id_3" → pointer_to_user_id_3
+     ```
+
+### Index Storage Options
+- **Heap File**: Index points to the actual storage location of values, avoiding data duplication.
+- **Clustered Index**: Store the indexed row within the index itself (e.g., MySQL primary keys).
+- **Covered Indexes**: Store a subset of columns in the index to avoid full-row reads.
+
+## Multi-Column Indexes
+
+- **Concatenated Index**: Simple concatenation of multiple columns.
+- **Multi-Dimensional Index**: Useful for range queries across multiple dimensions (e.g., altitude and longitude in geographic data).
+  - **Methods**:
+    - **Space-Filling Curve**: Concatenate with a curve.
+    - **R-Tree**: Common for spatial and multi-dimensional queries.
+
+## In-Memory Databases
+
+### Architecture
+- **Memory-First**: All reads are served from memory, while writes are logged to disk for durability.
+- **Redis**: Offers weak durability with asynchronous writes to disk.
+
+### Advantages
+- **No Encoding Overhead**: In-memory storage removes the need to encode structures for disk.
+- **Data Model Flexibility**: Supports advanced data types like priority queues and sets.
+- **LRU Caching**: Handles larger-than-memory datasets by evicting rows based on LRU, unlike OS virtual memory, which swaps entire pages.
+
+## Analytics
+
+- **OLTP vs. OLAP**:
+  - **OLTP**: Small, random-access reads/writes, with GB-TB datasets for real-time applications.
+  - **OLAP**: Large, sequential reads for analytical queries, often TB-PB datasets.
+
+### Data Warehousing
+- **ETL Process**: Extract data from OLTP systems into a data warehouse.
+- **Schema**:
+  - **Star Schema**: Central fact table surrounded by dimension tables for analysis.
+  - **Snowflake Schema**: Extension of the star schema with subdimensions.
+
+### Column-Oriented Storage for OLAP
+- **Bitmap Encoding**: Use bitmaps to encode column values, with run-length encoding for large, repetitive data.
+- **Vectorized Processing**: Operate on data in L1 cache without function calls, using AND/OR operations.
+
+### Writing and Sorting
+- **LSM-Trees for OLAP**: Used in column-oriented storage (e.g., Vertica, Cassandra) to enable bulk updates rather than in-place modifications, as in B-trees.
+- **Data Aggregation**: Store aggregates (e.g., data cubes) for faster queries.
+
+## Summary
+- **OLTP**: Limited by disk seek time, uses log-structured or append-only storage (e.g., SSTables, LSM-trees).
+- **OLAP**: Limited by disk bandwidth; column-oriented storage with encoding is optimal.

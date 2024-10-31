@@ -1,0 +1,135 @@
+---
+layout: post
+title: "Encoding and Evolution"
+date: 2024-10-31
+categories: [DDIA, Data Formats, Schema Evolution]
+---
+
+# Chapter 4: Encoding and Evolution
+
+### Motivation
+
+In **relational databases**, data storage follows a **schema-on-write** model, where a single, enforced schema exists at any time. Schema migrations are managed through commands like `ALTER`. In contrast, **schema-on-read** databases (like document stores) are often **schemaless**—storing data in various formats over time.
+
+When a **data format or schema changes**, applications relying on it must also update. However, client applications don’t upgrade instantly:
+- **Client-side** applications update when the client decides to upgrade.
+- **Server-side** upgrades, often managed with a **rolling deployment**, reduce downtime.
+
+### Backward and Forward Compatibility
+
+To maintain consistency in distributed systems, **backward** and **forward compatibility** are crucial:
+- **Forward Compatibility**: Older code can read data written by newer code.
+- **Backward Compatibility**: Newer code can read data written by older code.
+
+### Data Formats and Encoding
+
+**Data encoding** is essential for **serialization** (converting in-memory data to formats for disk or network storage) and **deserialization** (reconstructing data into memory).
+
+#### Language-Specific Encoding
+
+Language-specific encodings, such as those created by Java’s `Serializable` or Python’s `pickle`, have drawbacks:
+- **Limitations**: Often incompatible with other systems, lack forward/backward compatibility.
+- **Drawbacks**: Inefficient for network transfers and language-dependent, which reduces flexibility and security.
+
+#### Text-Based Formats: JSON, XML, and CSV
+
+**JSON**, **XML**, and **CSV** are popular for data interchange due to human readability. However, they have limitations:
+- **Ambiguities in Number Encoding**: JSON doesn’t distinguish integers from floats, which can cause issues with large numbers (e.g., JavaScript’s 64-bit integer handling).
+- **Binary Data Limitations**: Both JSON and XML encode binary data using Base64, increasing data size by ~33%.
+- **Schema Support**: JSON and XML allow optional schemas, but these are often complex to manage, and CSV lacks schema support entirely.
+
+**Example**: JSON is widely used in RESTful APIs, where both client and server can agree on a standard format.
+
+#### Binary Extensions: BSON and MessagePack
+
+**Binary formats** like **BSON** (used by MongoDB) and **MessagePack** are efficient, binary-compatible extensions of JSON, preserving field names while providing more compact data representations.
+
+- **Size Comparison**: JSON may consume 81 bytes, while BSON or MessagePack reduces it to around 66 bytes by eliminating whitespace and using binary encoding.
+
+### Protocol Buffers and Apache Thrift
+
+**Protocol Buffers** (used by gRPC) and **Apache Thrift** are binary encoding formats requiring defined schemas. These schemas can be compiled to generate classes in various languages, making data exchange consistent across platforms.
+
+**Encoding Examples**:
+- **BinaryProtocol** and **CompactProtocol** (Thrift): CompactProtocol uses variable-length encoding, reducing a record from 81 bytes to about 34 bytes.
+
+### Schema Evolution
+
+Schema evolution keeps data compatible as changes occur:
+
+- **Field Tags**: In Protocol Buffers and Thrift, each field is tagged uniquely. Tags must stay consistent to maintain compatibility:
+  - **Backward Compatibility**: New fields must be optional, and removed fields’ tags should not be reused.
+  - **Forward Compatibility**: New fields must use unique tags, and parsers skip unrecognized fields based on type annotations.
+- **Data Types**: Changing data types can risk data truncation. For instance, expanding an integer field from 36 bits to 64 bits may cause issues for readers expecting 36-bit values.
+
+### Special Handling for Complex Data
+
+Both **Protocol Buffers** and **Thrift** provide flexibility for complex data:
+- **Protocol Buffers** allow converting single fields to repeated fields.
+- **Thrift** supports nested lists to enable more complex structures.
+
+### Avro
+
+**Avro** is a compact, efficient format:
+- **No Tags or Type Information**: Avro relies on the schema to interpret field types.
+- **Schema Evolution**: Avro compares writer and reader schemas for compatibility. Fields can be added or removed with default values.
+
+**Example of Schema Evolution with Avro**:
+- Adding a nullable field requires a union type: `union {null, long}` to ensure compatibility.
+
+Avro provides flexibility for systems with high data evolution, especially when used in distributed environments where teams independently modify schemas.
+
+#### Writer’s Schema Storage
+
+Avro provides multiple storage methods for schemas:
+- **Object Container Files**: In file-based storage (e.g., HDFS), Avro stores the schema at the beginning of the file.
+- **Versioned Records**: For databases, records may include version numbers with a schema list.
+- **Streaming Protocols**: For networked systems, like Avro RPC, both ends agree on a schema for the connection duration.
+
+### Practical Applications in Data Systems
+
+- **Relational Databases**: Many relational databases use proprietary binary formats with JDBC/ODBC connectors. Avro bridges flexibility (schema-on-read) and consistency (schema-on-write) for evolving systems.
+- **Data Lakes**: For efficient archival storage, combining Avro container files with columnar formats (e.g., Parquet) offers both storage efficiency and fast analytical queries.
+
+### REST and RPC
+
+Applications communicate over networks mainly through APIs, usually REST or RPC.
+
+#### REST APIs
+
+- **REST**: Identifies resources by URLs, using HTTP methods for CRUD operations.
+  - **Examples**: Public-facing APIs often favor REST for its standardization.
+  - **Advantages**: Extensive tooling (e.g., Nginx for load balancing, Postman for testing).
+
+#### RPC Frameworks
+
+RPC frameworks abstract remote function calls but face unique challenges:
+- **Timeouts and Reliability**: Network failures can make distinguishing network and application errors difficult.
+- **Idempotency**: Retrying calls requires careful handling to avoid duplicate effects.
+- **Object Size**: Large objects can create performance bottlenecks due to serialization.
+
+**Frameworks**:
+- **gRPC**: Based on Protocol Buffers, it supports streaming, allowing multiple request-response cycles.
+- **Service Discovery**: Many RPC frameworks rely on service discovery for locating services by IP/port.
+
+**Typical Use Cases**:
+- **RPC** is often used within data centers for low-latency communication, while **REST** remains popular for public-facing APIs.
+
+### Message-Passing Systems
+
+Unlike RPC, **message-passing systems** buffer data, enabling retries and decoupling senders from receivers. They also allow asynchronous processing, which helps handle high-throughput and variable data loads.
+
+### Distributed Actor Frameworks
+
+Some concurrent applications utilize **actor frameworks**, where each actor functions as a client, communicating asynchronously. **Examples**: Akka and Microsoft Orleans.
+
+### Summary
+
+Avro combines **schema-on-write** consistency with **schema-on-read** flexibility, supporting dynamic, evolving systems.
+
+#### Key Points
+- **Data Systems**: Forward and backward compatibility supports schema evolution without breaking data compatibility.
+- **REST vs. RPC**: REST is suited for public APIs, while RPC works well within data centers.
+- **Message Passing**: Asynchronous processing benefits decoupled, distributed services.
+
+By using compatible encoding and evolution practices, distributed systems ensure smooth schema transitions and application longevity.

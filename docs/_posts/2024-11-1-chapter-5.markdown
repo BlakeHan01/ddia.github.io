@@ -1,0 +1,127 @@
+---
+layout: post
+title: "Partitioning"
+date: 2024-11-01
+categories: [DDIA, Data Partitioning, Distributed Systems]
+---
+
+# Chapter 6: Partitioning
+
+### Purpose
+
+Partitioning is crucial in distributed systems to manage **data scalability** and **fault tolerance**. By dividing data across multiple nodes (horizontal partitioning or sharding), systems can handle higher workloads and distribute load more effectively.
+
+### Chapter Layout
+
+1. **Partitioning of Key-Value Data**
+   - Strategies for distributing data across partitions.
+   - Different types of partitioning: range-based, hash-based, and others.
+2. **Partitioning and Querying in Distributed Databases**
+   - How to ensure efficient querying when data is spread across multiple partitions.
+3. **Challenges with Partitioned Data**
+   - Handling skewed data, hot spots, and the issue of balancing partitions.
+4. **Rebalancing Partitions**
+   - Strategies for managing rebalancing when nodes are added or removed.
+5. **Transaction Challenges with Partitioning**
+   - Issues with cross-partition transactions and how to handle atomicity and consistency.
+
+---
+
+### Partitioning Strategies
+
+Partitioning is often based on a data key to determine the target partition. **Common partitioning strategies** include:
+
+- **Range-Based Partitioning**: Data is assigned to partitions based on ranges of a key.
+  - Example: Date ranges might place data for January in one partition and February in another.
+  - **Tradeoff**: Simpler for range-based queries, but susceptible to **hot spots** if data is concentrated in specific ranges.
+
+- **Hash-Based Partitioning**: Uses a hash function to assign keys to partitions.
+  - Example: Applying a hash to `customer_id` evenly distributes data across nodes.
+  - **Tradeoff**: Better for balancing load, but can complicate range queries.
+
+- **Directory-Based Partitioning**: A central directory maps keys to partitions, providing flexibility.
+  - Example: Maintaining a directory to track large file locations in a distributed file system.
+  - **Tradeoff**: Directory needs to be kept up-to-date, which can be complex.
+
+---
+
+### Partitioning and Querying in Distributed Databases
+
+Querying partitioned data presents unique challenges:
+
+- **Single-Partition Queries**: If all data needed for a query resides in one partition, performance is straightforward.
+  - Example: A user-specific data retrieval where the data is entirely stored in one partition.
+  
+- **Cross-Partition Queries**: Queries that span multiple partitions require additional coordination.
+  - **Challenges**: Cross-partition transactions must handle potential inconsistencies and failures across nodes.
+  - **Example**: Aggregating user data across regions requires each partition to contribute partial results.
+
+#### Indexes in Partitioned Data
+
+Indexes are partitioned similarly to data, which raises challenges in locating indexed records across partitions:
+- **Global Index**: Requires coordination across partitions for reads.
+- **Local Index**: Each partition holds its own index, making single-partition reads efficient but complicating cross-partition queries.
+
+---
+
+### Balancing and Skew Handling
+
+Partitioning schemes must handle imbalanced data distribution:
+- **Data Skew**: Occurs when data is unevenly distributed, creating hot spots and overloading specific nodes.
+  - Example: Popular items in an e-commerce database could concentrate data access on particular partitions.
+
+**Solutions for Data Skew**:
+1. **Dynamic Partitioning**: Adjust partitions based on load, creating subpartitions for hot data.
+2. **Adaptive Hashing**: Alter hash functions dynamically to distribute hot data more evenly.
+3. **Consistent Hashing**: Minimizes rebalancing by only moving a subset of data during node addition/removal.
+
+---
+
+### Rebalancing Partitions
+
+As the system grows, partitions must be rebalanced:
+- **Repartitioning on Scaling Up**: Adding nodes requires redistributing data, which is complex and may cause downtime.
+- **Consistent Hashing**: Ensures minimal data movement by hashing keys to a fixed ring of partitions, with each node responsible for a portion of the ring.
+
+**Rebalancing Process**:
+1. **Identify Data to Move**: Use a deterministic rule (like consistent hashing) to minimize data transferred.
+2. **Redistribute Data**: Move data between nodes with minimal disruption to service.
+3. **Update Metadata**: Ensure all nodes are aware of the new data location after rebalancing.
+
+---
+
+### Transaction Challenges with Partitioning
+
+Partitioning affects **transaction guarantees** due to distributed data locations:
+
+1. **Single-Partition Transactions**: Ensure high availability and consistency, as all data resides within one node.
+   - **Example**: User-specific transactions like updating a single user's profile.
+
+2. **Cross-Partition Transactions**: Involve multiple partitions, making **atomicity** and **consistency** more complex.
+   - **Distributed Two-Phase Commit (2PC)**: Often used for coordinating transactions across partitions but adds latency and may lead to partial failures.
+
+#### Avoiding Cross-Partition Transactions
+
+- **Design for Locality**: Store related data within the same partition to minimize cross-partition interactions.
+  - **Example**: Grouping all orders from a single user within one partition.
+
+---
+
+### Secondary Indexes in a Partitioned Database
+
+Creating secondary indexes in partitioned databases requires specific handling:
+
+- **Local Secondary Indexes**: Each partition maintains its own index, fast for local reads.
+- **Global Secondary Indexes**: Maintain consistency across partitions but increase complexity and latency.
+
+### Consistency and Partitioning
+
+Partitioning adds complexity to consistency:
+- **Eventual Consistency**: If partitions are asynchronously replicated, there can be delays in data consistency.
+  - Example: A write made to one partition might take time to propagate to other partitions, creating inconsistencies in reads.
+
+---
+
+### Summary
+
+Partitioning enables scalable data storage by distributing data across nodes. Each partitioning strategy has tradeoffs in terms of query efficiency, load balancing, and consistency. Effective partition management, especially as nodes are added or removed, requires robust rebalancing techniques and careful handling of transactions. In distributed systems, partitioning is a cornerstone of horizontal scalability, allowing databases to handle high loads while remaining fault-tolerant and performant.

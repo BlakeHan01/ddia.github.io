@@ -1,0 +1,128 @@
+---
+layout: post
+title: "Partitioning"
+date: 2024-11-04
+categories: [DDIA, Data Partitioning, Distributed Systems]
+---
+
+# Chapter 6: Partitioning
+
+### Motivation: Scalability
+
+Partitioning, or sharding, is essential for scalability in distributed systems. By splitting large datasets across multiple nodes, systems can handle higher loads and distribute requests more evenly, avoiding hotspots and enabling better performance.
+
+### Chapter Layout
+
+1. **Approaches to Partitioning Large Datasets**: Various methods for distributing data across partitions and managing hotspots.
+2. **Indexing and Partitioning**: How secondary indexes interact with partitioned data.
+3. **Rebalancing Partitions**: Strategies for managing partitions when adding or removing nodes.
+4. **Routing Requests to Partitions**: How the database routes queries to the appropriate partitions.
+
+---
+
+### Approaches to Partition Key-Value Data
+
+Partitioning is a key strategy to avoid overloading any single node. An uneven data distribution can cause **skew**, leading to hotspots. **Random partitioning** isn't ideal as it requires querying all nodes in parallel. Here are common partitioning strategies:
+
+#### 1. Partition by Key Range
+
+- **Used by**: Bigtable, MongoDB (pre-v2.4).
+- **Approach**: Data is partitioned based on key ranges, such as a date range or a concatenated key like `sensorID_timestamp`.
+  
+**Example**:
+- For sensor data, each partition could store data for a unique time range, such as `year-month-day`.
+- **Challenge**: Partitioning by timestamp can create hotspots if all recent writes go to the same partition. A solution is to partition by both `sensorID` and `timestamp`, but this can complicate range queries.
+
+#### 2. Partition by Hash of Key
+
+- **Used by**: Cassandra, MongoDB (post-v2.4).
+- **Approach**: Uses a hash function to determine the partition, which evenly distributes data to avoid hotspots.
+
+**Example**:
+- MongoDB uses MD5, while Cassandra uses Murmur3. This avoids skew, but range queries on the primary key become challenging.
+- **Cassandra Compound Key**: Cassandra uses compound keys where the first part is the partition key and the second part (e.g., `update_timestamp`) allows for range queries within a partition.
+
+#### Handling Highly Skewed Workloads
+
+In cases of extreme data skew, application-level strategies can be used to avoid overloading any single partition:
+- **Solution**: Add a random suffix or prefix to the key (e.g., `key_00` to `key_99`).
+  - **Drawback**: Requires extra bookkeeping as reads need to query multiple keys and merge results.
+
+---
+
+### Partitioning and Secondary Indexes
+
+Partitioning can affect secondary indexes, which often need to be distributed across partitions.
+
+#### 1. Partition by Document (Scatter/Gather)
+
+- **Used by**: MongoDB, Cassandra, Elasticsearch.
+- **Approach**: Each secondary index is stored within the partition of the document. Reads may need to query all partitions, leading to **tail latency** issues if any partition is slow.
+- **Example**: Partitioning a car listings database by `document ID`. Queries by `car make` or `color` may require searching across all partitions.
+
+#### 2. Partition by Term (Global Index)
+
+- **Used by**: DynamoDB.
+- **Approach**: Secondary indexes are stored based on the index term itself. For example, `color` and `make` ranges determine partition placement.
+- **Advantage**: More efficient reads as queries can target a specific partition.
+- **Challenge**: Writes can be complex, needing to update multiple partitions at once, often requiring distributed transactions.
+
+---
+
+### Rebalancing Partitions
+
+As systems grow, partitions need rebalancing to maintain even load distribution. An ideal strategy balances load with minimal data movement and continuous availability.
+
+#### Strategies for Rebalancing
+
+1. **Fixed Number of Partitions**
+   - **Approach**: Start with a large, fixed number of partitions and redistribute as nodes are added.
+   - **Example**: Elasticsearch uses 1000 partitions for even distribution, though static partitioning can lead to imbalance as data grows.
+   - **Drawback**: Fixed partitions make rebalancing costly, especially with growing datasets.
+
+2. **Dynamic Partitioning**
+   - **Approach**: Start with fewer partitions and split them dynamically when data volume grows or skew develops.
+   - **Example**: MongoDB v2.4+ uses dynamic partitioning, adapting to data volume over time.
+   - **Advantage**: Avoids initial skew, as partitions can be split as data volume grows.
+
+3. **Partitioning Proportional to Nodes**
+   - **Approach**: Each node splits a fixed number of existing partitions upon joining.
+   - **Example**: Cassandra 3.0 uses a new algorithm to avoid uneven splits. In Cassandra 4.0, each new node takes on a calculated set of virtual nodes (vnodes) based on optimized token ranges.
+
+---
+
+### Request Routing
+
+Efficient request routing ensures that client requests reach the correct partition. This is often implemented as part of a larger service discovery mechanism.
+
+#### Methods for Routing Requests
+
+1. **Node as Coordinator**
+   - Every node can act as a coordinator, receiving client requests and routing them to the correct node.
+   
+2. **Partition-Aware Client**
+   - **Approach**: The client knows the mapping of partitions to nodes, allowing it to direct requests correctly.
+   - **Example**: Some databases use a central coordination service, like Zookeeper, which maps key ranges to nodes.
+
+3. **Routing Tier (Partition-Aware Load Balancer)**
+   - A dedicated layer forwards requests to the appropriate partition, adapting to node changes as the cluster scales.
+
+#### Keeping Track of Partition Changes
+
+- **Centralized Coordination Service**: Services like Zookeeper can store the mapping of partitions to nodes, ensuring all clients and nodes have up-to-date partition information.
+- **Gossip Protocol**: Used in Cassandra, where nodes communicate state information with one another to maintain an up-to-date view of the cluster.
+
+---
+
+### Parallel Query Execution
+
+To improve performance, many databases support parallel execution for queries across partitions:
+- **Single-Key Reads/Writes**: Most databases support direct read/write for a single key.
+- **Massively Parallel Processing (MPP)**: For complex queries, query optimizers split the query into parallel tasks executed across partitions.
+
+---
+
+### Summary
+
+Partitioning enables distributed systems to scale by distributing data and load across nodes. Different partitioning methods offer tradeoffs between load balancing, query efficiency, and range query support. Effective partitioning requires careful rebalancing strategies and optimized request routing to maintain performance and availability as data grows and nodes are added or removed.
+

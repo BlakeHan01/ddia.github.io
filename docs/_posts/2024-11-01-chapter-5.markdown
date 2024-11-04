@@ -1,0 +1,166 @@
+---
+layout: post
+title: "Replication"
+date: 2024-11-01
+categories: [DDIA, Replication, Distributed Systems]
+---
+
+# Chapter 5: Replication
+
+### Purpose
+
+Replication is essential in distributed systems to ensure availability, reliability, and scalability. By replicating data across multiple nodes or regions, systems can:
+- **Reduce user latency** through cross-region replication.
+- **Increase availability** with standby replicas.
+- **Improve read throughput** with read replicas.
+
+### Chapter Layout
+
+1. **Algorithms for Replicating Changes**: Approaches like single-leader, multi-leader, and leaderless replication.
+2. **Tradeoffs with Replication Methods**: Synchronous vs. asynchronous replication and handling failed replicas.
+3. **Challenges with Eventual Consistency**: Addressing issues like read-your-write consistency and monotonic reads.
+
+---
+
+### Leader-Based Replication (Single-Leader Replication)
+
+In **leader-based replication**, one node (leader) accepts all writes and propagates changes to follower nodes, making it effective for read-scaling. This method is a built-in feature of **MySQL, PostgreSQL, MongoDB**, and **Kafka**.
+
+#### Synchronous vs. Asynchronous Replication
+
+- **Synchronous Replication**: Guarantees followers have up-to-date data, useful for disaster recovery. However, it can delay writes if followers are slow or encounter network issues, requiring the leader to block writes until a response.
+- **Asynchronous Replication**: Writes go through even if followers lag, trading durability for availability. If the leader fails, writes not yet propagated to followers may be lost.
+
+**Example**: Microsoft Azure Storage uses **chain replication** (synchronous) to ensure data durability and prevent data loss.
+
+---
+
+### Setting Up New Followers
+
+For new followers, a **point-in-time (PIT) snapshot** of the leader’s data is needed to avoid inconsistencies. Here’s how to do it without downtime:
+
+1. **Consistent Snapshot**: Capture a snapshot of the leader’s database without locking it.
+2. **Copy Snapshot to Follower Nodes**.
+3. **Link Snapshot to Replication Log**: Associate the snapshot with the leader’s log (e.g., log sequence number in PostgreSQL or binlog coordinates in MySQL) to catch up with recent changes.
+
+---
+
+### Handling Node Outages
+
+Nodes can fail due to faults or maintenance, requiring specific recovery methods:
+- **Follower Recovery**: Followers use a log of data changes to catch up, similar to snapshot catch-up.
+- **Leader Failover**:
+  - **Automatic Failover**: Detects leader failure and promotes a new leader based on criteria like which node is most up-to-date.
+  - **Challenges**: Unreplicated writes can lead to conflicts, and split-brain scenarios (multiple leaders) may occur under heavy load.
+
+**Example**: GitHub once leaked private data due to a primary key issue with auto-increment after a failover.
+
+---
+
+### Replication Log Implementation
+
+1. **Statement-Based Replication**:
+   - Logs write requests (`INSERT`, `UPDATE`, `DELETE`) as statements.
+   - **Challenges**: Non-deterministic functions like `RAND()` can cause inconsistencies across replicas.
+
+2. **Write-Ahead Log (WAL) Shipping**:
+   - Logs data changes at a byte level, tightly coupled with the storage engine.
+   - **Limitation**: Upgrades without downtime are challenging since follower and leader storage versions must match.
+
+3. **Logical (Row-Based) Log Replication**:
+   - Logs changes at a row level, providing flexibility across database versions.
+   - **Advantages**: Supports data warehouses and change data capture by sending data changes externally.
+
+4. **Trigger-Based Replication**:
+   - Tracks changes through database triggers, allowing for flexible replication of subsets or custom conflict handling.
+   - **Use Case**: Replicating data across different databases with custom logic.
+
+---
+
+### Addressing Replication Lag and Consistency
+
+Replication lag in asynchronous systems can lead to consistency issues, especially for user-visible data.
+
+#### Read-Your-Write Consistency
+
+Ensures users see their updates immediately. Techniques include:
+1. Reading user data from the leader until followers catch up.
+2. Routing requests to followers that have data at least as recent as the user’s last update.
+3. For cross-device consistency, maintaining centralized storage with timestamps to ensure up-to-date reads.
+
+#### Monotonic Reads
+
+Guarantees that users do not see "older" data after seeing "newer" data. To achieve this:
+- Always route the user’s requests to the same replica, rerouting only if the replica fails.
+
+#### Consistent Prefix Reads
+
+Ensures causally related writes are read in sequence. This is especially important for sharded databases, where causally related writes are routed to the same partition.
+
+---
+
+### Multi-Leader Replication
+
+**Multi-leader replication** is effective in multi-datacenter setups to reduce latency by allowing local writes, which are then asynchronously replicated to other datacenters.
+
+**Challenges**:
+- **Conflict Resolution**: Conflicting writes can occur when concurrent updates are made in different datacenters.
+- **Triggers and Auto-Increment**: Triggers may misbehave, and auto-incrementing keys can cause data leakage or conflicts.
+
+**Example**: CouchDB uses multi-leader replication to sync offline updates across devices.
+
+---
+
+### Handling Write Conflicts
+
+In multi-leader systems, concurrent writes can cause conflicts.
+
+**Conflict Resolution Strategies**:
+1. **Conflict Avoidance**: Route all updates of a record to the same leader.
+2. **Converging to a Consistent State**:
+   - **Last Write Wins (LWW)**: Uses timestamps to resolve conflicts but can lead to data loss.
+   - **Merge Values**: Combine values (e.g., "B/C" for concurrent updates).
+3. **Custom Conflict Resolution**:
+   - Trigger a conflict handler on detecting a conflict, or prompt users to resolve.
+
+**Automatic Conflict Resolution**:
+- **Google Docs** uses operational transformations to sync collaborative edits.
+- **Riak 2.0** uses CRDTs (conflict-free replicated data types) for automatic merging of sibling versions.
+
+---
+
+### Multi-Leader Replication Topologies
+
+Common topologies include:
+- **Star and Circular**: Simple but prone to single points of failure.
+- **All-to-All**: More robust, but causality issues arise with slower links, making **version vectors** necessary.
+
+---
+
+### Leaderless Replication
+
+In **leaderless replication** (e.g., Dynamo-style), clients or coordinators handle writes to multiple replicas, allowing for more flexible fault tolerance.
+
+#### Mechanisms for Node Catch-Up
+
+1. **Read Repair**: Stale data is repaired during reads, ideal for frequently accessed data.
+2. **Anti-Entropy**: A background process that compares data differences between replicas for consistency.
+
+#### Quorum Reads and Writes
+
+- Ensures consistency by requiring `w + r > n` (write and read quorum).
+- **Challenges**: Stale reads can occur with sloppy quorums or if clocks are not perfectly synchronized.
+
+**Example**: DynamoDB uses sloppy quorums with hinted handoff, temporarily storing data in alternate nodes to increase write availability during network issues.
+
+---
+
+### Quantifying Eventual Consistency
+
+For leader-based replication, staleness can be measured by comparing leader and follower log positions. However, in leaderless systems, quantifying staleness is challenging due to unordered writes and potential delays in read repair.
+
+---
+
+### Summary
+
+Replication enables distributed systems to scale across regions, reduce latency, and improve fault tolerance. Each replication method—single-leader, multi-leader, and leaderless—presents unique tradeoffs in terms of latency, consistency, and durability. Handling conflicts, ensuring read consistency, and minimizing replication lag are essential to maintaining a robust and reliable system.

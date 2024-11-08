@@ -1,0 +1,129 @@
+---
+layout: post
+title: "Transactions"
+date: 2024-11-08
+categories: [DDIA, Transactions, Distributed Systems]
+---
+
+# Chapter 7: Transactions
+
+### Overview
+
+Transactions offer a safety guarantee that simplifies programming by grouping a series of reads and writes as an atomic unit—either they all succeed, or none are applied. This safety is crucial for dealing with failures, network interruptions, and concurrency issues, but it often comes with trade-offs in performance and availability.
+
+### Chapter Layout
+
+1. **Safety Guarantees of Transactions**: Understanding what transactions protect against.
+2. **Costs of Safety Guarantees**: Performance and other trade-offs.
+3. **Examples of Potential Issues**: Race conditions and concurrency problems.
+4. **Isolation Levels**: Different levels of isolation and their impact.
+
+---
+
+### ACID Properties
+
+Transactions aim to ensure **ACID** properties:
+- **Atomicity**: A transaction is all-or-nothing; if any part fails, the entire transaction aborts.
+- **Consistency**: Transactions uphold application-defined invariants, such as no negative balances or lost funds.
+- **Isolation**: Transactions appear to run in isolation, as if serially executed.
+- **Durability**: Data is safely stored on disk or replicated, persisting after completion.
+
+---
+
+### Single-Object and Multi-Object Operations
+
+Transactions often operate on multiple objects:
+- **Example**: Counting unread emails by storing the count in a separate field can lead to issues if transactions don’t complete fully:
+  - **Isolation Violation**: Viewing an email before a transaction updates the count.
+  - **Atomicity Violation**: Errors in updates can cause mismatches.
+
+In **relational databases**, these operations are managed by starting and committing transactions. In **NoSQL systems**, even with multi-object operations, full transaction semantics are not guaranteed.
+
+#### Single-Object Writes
+
+For large single-object writes, such as storing a 20KB JSON document, atomicity and isolation are crucial to avoid partial failures. This can be achieved with:
+- **Write-Ahead Logs (WAL)** for atomicity.
+- **Record Locks** for isolation.
+
+---
+
+### The Need for Multi-Object Transactions
+
+Applications often require multi-object transactions:
+- **Foreign Key References**: Ensuring valid references between tables, such as linking orders with users.
+- **Denormalized Data in NoSQL**: Maintaining consistency across multiple documents.
+- **Secondary Indexes**: Ensuring consistency between primary data and indexes.
+
+Implementing these without transactions complicates error handling, as each potential failure requires explicit handling.
+
+---
+
+### Handling Errors and Aborts
+
+Transactions should either complete or abort without partial effects. **Leaderless systems** may use best-effort approaches, lacking guaranteed rollbacks on errors. To avoid complications:
+- **Retry Only on Transient Errors**: Avoids unintended retries.
+- **Avoid Multiple Side Effects on Retry**: For actions like sending emails, use idempotent operations or two-phase commit to ensure retries don’t cause unintended side effects.
+
+---
+
+### Weak Isolation Levels
+
+Race conditions and concurrent operations can lead to consistency issues. Full serializable isolation is costly, so many systems use **weaker isolation levels**:
+
+- **Read Committed**: Prevents **dirty reads** (reading uncommitted data) and **dirty writes** (overwriting uncommitted changes).
+- **Snapshot Isolation and Repeatable Read**: Resolves **repeatable read** issues, allowing consistent reads by maintaining **multi-version concurrency control (MVCC)**.
+
+#### Implementation Example (PostgreSQL)
+
+- PostgreSQL uses MVCC, storing each record with transaction IDs for creation and deletion, enabling snapshot isolation.
+- **Garbage Collection**: Removes data once no transactions can access it.
+
+---
+
+### Preventing Lost Updates
+
+**Lost updates** occur when two transactions modify the same object concurrently. Strategies include:
+- **Cursor Stability**: Only one cursor holds an object lock, preventing lost updates in read-modify-write operations.
+- **Single-Threading**: Executes all operations in a single thread.
+- **Explicit Locking**: Application logic can use locks for cases requiring specific constraints.
+- **Automatic Detection of Lost Updates**: Some systems, like PostgreSQL with repeatable read, detect lost updates and abort the affected transaction.
+
+---
+
+### Write Skew and Phantoms
+
+**Write Skew** happens when transactions read the same objects but modify overlapping sets, like booking conflicts in a scheduling system.
+
+- **Solutions**:
+  - **Serializable Isolation**: Prevents write skew by effectively serializing transactions.
+  - **Explicit Row Locks**: Ensures that no other transaction can alter checked rows.
+  - **Materializing Conflicts**: Creating rows for potential conflicts, such as for scheduling overlapping times.
+
+---
+
+### Serializability
+
+Lower isolation levels can introduce subtle issues:
+- **Implementation Differences**: Different databases may interpret isolation levels differently.
+- **Lack of Tools**: Detecting race conditions is challenging due to their non-deterministic nature.
+
+#### Single-Node Serializability Techniques
+
+1. **Actual Serial Execution**:
+   - Executes each transaction sequentially in a single-threaded loop.
+   - Works well for in-memory databases and OLTP workloads but has scalability limitations.
+
+2. **Two-Phase Locking (2PL)**:
+   - Uses shared and exclusive locks, with growing and shrinking phases.
+   - Prevents lost updates but can lead to **deadlocks**, requiring deadlock detection and retries.
+
+3. **Serializable Snapshot Isolation (SSI)**:
+   - An optimistic approach, which allows reads without locks but checks for conflicts at commit.
+   - **Optimistic Concurrency Control**: Only conflicts lead to aborts, making it suitable for read-heavy workloads.
+   - **Premises**: Detects out-of-date premises to determine if a transaction should abort.
+
+---
+
+### Summary
+
+Transactions provide a foundational guarantee for data consistency in distributed systems, handling concurrent operations, failure scenarios, and network issues. Achieving these guarantees comes with a trade-off between safety and performance. Different isolation levels and serializability implementations allow developers to balance these trade-offs according to application requirements.
